@@ -1,0 +1,145 @@
+// ---------------------------------------------------------------------------
+// Prisma Schema — Agentic LLM Testing Framework
+// ---------------------------------------------------------------------------
+//
+// Supabase (PostgreSQL) as the data layer.
+// Run `bunx prisma migrate dev` to apply changes.
+// Run `bunx prisma generate` to regenerate the client.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ScenarioType {
+  COOPERATION
+  RESOURCE_MANAGEMENT
+  COMMUNICATION_OVERLOAD
+  MULTI_AGENT_COORDINATION
+  ADVERSARIAL_REASONING
+}
+
+enum TestStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentRole {
+  TARGET_LLM
+  TESTING_AGENT
+  COORDINATOR
+  OBSERVER
+}
+
+enum EventSource {
+  MINECRAFT
+  DISCORD
+}
+
+// ---------------------------------------------------------------------------
+// Test Run — the central entity (history of tests)
+// ---------------------------------------------------------------------------
+
+model TestRun {
+  id           String       @id @default(cuid())
+  name         String
+  scenarioType ScenarioType
+  targetModel  String       // OpenRouter model ID used by the target LLM
+  status       TestStatus   @default(PENDING)
+  config       Json         // flexible config blob (duration, prompts, MC server, etc.)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  agents  TestAgent[]
+  events  TestEvent[]
+  metrics TestMetric[]
+  report  TestReport?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Test Agent — participants in a test run
+// ---------------------------------------------------------------------------
+
+model TestAgent {
+  id                String    @id @default(cuid())
+  testRunId         String
+  testRun           TestRun   @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  displayName       String
+  role              AgentRole
+  behavioralProfile String?   // e.g. "non-cooperator", null for target LLM
+  systemPrompt      String?   @db.Text
+  minecraftUsername  String?
+  llmModel          String?   // OpenRouter model ID if this agent is LLM-powered
+  createdAt         DateTime  @default(now())
+
+  events  TestEvent[]
+  metrics TestMetric[]
+
+  @@index([testRunId])
+}
+
+// ---------------------------------------------------------------------------
+// Test Event — unified log of actions and chat messages
+// ---------------------------------------------------------------------------
+
+model TestEvent {
+  id        String      @id @default(cuid())
+  testRunId String
+  testRun   TestRun     @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  agentId   String?
+  agent     TestAgent?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  source    EventSource // MINECRAFT or DISCORD
+  type      String      // "chat", "move", "dig", "place", "attack", "equip", etc.
+  payload   Json        // flexible data (message text, position, item, etc.)
+  timestamp DateTime    @default(now())
+
+  @@index([testRunId, timestamp])
+  @@index([agentId])
+}
+
+// ---------------------------------------------------------------------------
+// Test Metric — computed evaluation scores
+// ---------------------------------------------------------------------------
+
+model TestMetric {
+  id         String     @id @default(cuid())
+  testRunId  String
+  testRun    TestRun    @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  agentId    String?    // null = test-level metric, non-null = per-agent metric
+  agent      TestAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  name       String     // e.g. "cooperation_score", "task_completion_time"
+  value      Float
+  confidence Float?     // optional confidence interval
+  computedAt DateTime   @default(now())
+
+  @@index([testRunId])
+}
+
+// ---------------------------------------------------------------------------
+// Test Report — structured summary of a completed test
+// ---------------------------------------------------------------------------
+
+model TestReport {
+  id        String   @id @default(cuid())
+  testRunId String   @unique
+  testRun   TestRun  @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  summary   String   @db.Text // LLM-generated or templated summary
+  passed    Boolean? // overall pass/fail if applicable
+  createdAt DateTime @default(now())
+}

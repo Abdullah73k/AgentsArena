@@ -10,6 +10,7 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/openapi": "^1.4.14",
     "@openrouter/ai-sdk-provider": "^2.1.1",
+    "@prisma/client": "^7.3.0",
     "ai": "^6.0.77",
     "discord.js": "^14.25.1",
     "elevenlabs": "^1.59.0",
@@ -23,6 +24,8 @@
   },
   "devDependencies": {
     "bun-types": "latest",
+    "dotenv": "^17.2.4",
+    "prisma": "^7.3.0",
     "typescript": "^5.8.0"
   },
   "module": "src/index.js"
