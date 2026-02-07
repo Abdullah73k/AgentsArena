@@ -23,7 +23,7 @@ import {
   generateSpeech,
   isTTSConfigured,
 } from "./voice/tts-handler";
-import { resample24kMonoTo48kStereo } from "./voice/audio-player";
+
 import {
   registerAgent as registerAgentVoice,
   unregisterAgent as unregisterAgentVoice,
@@ -226,11 +226,8 @@ export abstract class DiscordService {
       // Generate 24kHz mono PCM from ElevenLabs
       const pcm24k = await generateSpeech(text, { voiceId });
 
-      // Resample to 48kHz stereo for Discord
-      const pcm48k = resample24kMonoTo48kStereo(pcm24k);
-
-      // Play the audio
-      const durationMs = await playAudio(guildId, pcm48k);
+      // Play the audio (playAudio handles resampling internally)
+      const durationMs = await playAudio(guildId, pcm24k);
 
       // Notify clients that speaking has ended
       discordEvents.emitEvent("speaking-ended", {

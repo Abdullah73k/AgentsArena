@@ -12,7 +12,7 @@
  */
 
 import { generateSpeech, isTTSConfigured } from "./tts-handler";
-import { resample24kMonoTo48kStereo, playAudio, stopAudio } from "./audio-player";
+import { playAudio, stopAudio } from "./audio-player";
 import { getConnectionState } from "./connection-manager";
 import { discordEvents } from "../events/event-broadcaster";
 import type {
@@ -221,11 +221,8 @@ async function processQueue(guildId: string): Promise<void> {
         voiceId: item.voiceId,
       });
 
-      // Resample for Discord
-      const pcm48k = resample24kMonoTo48kStereo(pcm24k);
-
-      // Play audio (blocks until playback completes)
-      const durationMs = await playAudio(guildId, pcm48k);
+      // Play audio (playAudio handles resampling internally)
+      const durationMs = await playAudio(guildId, pcm24k);
 
       // Emit speaking-ended event
       discordEvents.emitEvent("speaking-ended", {
