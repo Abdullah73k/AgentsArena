@@ -59,8 +59,8 @@ export const ChatResponse = t.Object({
   model: t.String(),
   usage: t.Optional(
     t.Object({
-      promptTokens: t.Optional(t.Number()),
-      completionTokens: t.Optional(t.Number()),
+      inputTokens: t.Optional(t.Number()),
+      outputTokens: t.Optional(t.Number()),
       totalTokens: t.Optional(t.Number()),
     }),
   ),
