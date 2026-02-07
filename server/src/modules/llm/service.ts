@@ -11,7 +11,7 @@
  * 400+ models through a single API key.
  */
 
-import { generateText, streamText, type CoreMessage } from "ai";
+import { generateText, streamText, type ModelMessage } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   OPENROUTER_API_KEY,
@@ -38,11 +38,11 @@ type ServiceResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string; code: string };
 
-function toCoreMessages(
+function toModelMessages(
   messages: ChatBody["messages"],
   system?: string,
-): CoreMessage[] {
-  const result: CoreMessage[] = [];
+): ModelMessage[] {
+  const result: ModelMessage[] = [];
   if (system) {
     result.push({ role: "system", content: system });
   }
@@ -76,9 +76,9 @@ export abstract class LlmService {
     try {
       const result = await generateText({
         model: openrouter.chat(modelId),
-        messages: toCoreMessages(body.messages, body.system),
+        messages: toModelMessages(body.messages, body.system),
         temperature: body.temperature,
-        maxTokens: body.maxTokens,
+        maxOutputTokens: body.maxTokens,
       });
 
       return {
@@ -88,8 +88,8 @@ export abstract class LlmService {
           model: modelId,
           usage: result.usage
             ? {
-                promptTokens: result.usage.promptTokens,
-                completionTokens: result.usage.completionTokens,
+                inputTokens: result.usage.inputTokens,
+                outputTokens: result.usage.outputTokens,
                 totalTokens: result.usage.totalTokens,
               }
             : undefined,
@@ -122,9 +122,9 @@ export abstract class LlmService {
     try {
       const stream = streamText({
         model: openrouter.chat(modelId),
-        messages: toCoreMessages(body.messages, body.system),
+        messages: toModelMessages(body.messages, body.system),
         temperature: body.temperature,
-        maxTokens: body.maxTokens,
+        maxOutputTokens: body.maxTokens,
       });
 
       return { ok: true as const, stream, model: modelId };
