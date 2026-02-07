@@ -24,8 +24,24 @@ import {
   isTTSConfigured,
 } from "./voice/tts-handler";
 import { resample24kMonoTo48kStereo } from "./voice/audio-player";
+import {
+  registerAgent as registerAgentVoice,
+  unregisterAgent as unregisterAgentVoice,
+  getAgentProfile,
+  getAllAgentProfiles,
+  speakAsAgent as agentSpeak,
+  stopAgentSpeaking as stopAgent,
+  getCurrentSpeaker,
+  getQueueLength,
+} from "./voice/agent-voice-manager";
 import { discordEvents } from "./events/event-broadcaster";
-import type { DiscordBotStatus, ServiceResult, VoiceConnectionState } from "./types";
+import type {
+  AgentVoiceProfile,
+  DiscordBotStatus,
+  ServiceResult,
+  SpeechResult,
+  VoiceConnectionState,
+} from "./types";
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -259,5 +275,119 @@ export abstract class DiscordService {
    */
   static isSpeaking(guildId: string): boolean {
     return isPlaying(guildId);
+  }
+
+  // -------------------------------------------------------------------------
+  // Agent Voice Management
+  // -------------------------------------------------------------------------
+
+  /**
+   * Register an agent with a unique voice profile.
+   */
+  static registerAgent(
+    agentId: string,
+    voiceId: string,
+    displayName: string,
+  ): ServiceResult<AgentVoiceProfile> {
+    const profile = registerAgentVoice(agentId, voiceId, displayName);
+    return { ok: true, data: profile };
+  }
+
+  /**
+   * Unregister an agent's voice profile.
+   */
+  static unregisterAgent(agentId: string): ServiceResult<{ success: boolean; message: string }> {
+    const removed = unregisterAgentVoice(agentId);
+
+    if (!removed) {
+      return {
+        ok: false,
+        message: `Agent "${agentId}" is not registered.`,
+        code: "AGENT_NOT_FOUND",
+        httpStatus: 404,
+      };
+    }
+
+    return {
+      ok: true,
+      data: { success: true, message: `Agent "${agentId}" unregistered.` },
+    };
+  }
+
+  /**
+   * Get a specific agent's voice profile.
+   */
+  static getAgent(agentId: string): ServiceResult<AgentVoiceProfile> {
+    const profile = getAgentProfile(agentId);
+
+    if (!profile) {
+      return {
+        ok: false,
+        message: `Agent "${agentId}" is not registered.`,
+        code: "AGENT_NOT_FOUND",
+        httpStatus: 404,
+      };
+    }
+
+    return { ok: true, data: profile };
+  }
+
+  /**
+   * List all registered agent voice profiles.
+   */
+  static listAgents(): ServiceResult<AgentVoiceProfile[]> {
+    return { ok: true, data: getAllAgentProfiles() };
+  }
+
+  /**
+   * Queue a speech request for a registered agent.
+   *
+   * The agent speaks using its assigned ElevenLabs voice.
+   * Requests are queued per guild and processed in FIFO order.
+   */
+  static async speakAsAgent(
+    guildId: string,
+    agentId: string,
+    text: string,
+  ): Promise<ServiceResult<SpeechResult>> {
+    if (!discordClient.isReady()) {
+      return {
+        ok: false,
+        message: "Discord bot is not connected. Start the bot first.",
+        code: "BOT_NOT_READY",
+        httpStatus: 503,
+      };
+    }
+
+    const result = await agentSpeak(guildId, agentId, text);
+
+    if (!result.success) {
+      return {
+        ok: false,
+        message: result.error ?? "Agent speech failed",
+        code: "AGENT_SPEECH_FAILED",
+        httpStatus: 500,
+      };
+    }
+
+    return { ok: true, data: result };
+  }
+
+  /**
+   * Stop the currently speaking agent and clear the queue for a guild.
+   */
+  static stopAgentSpeaking(guildId: string): ServiceResult<{ success: boolean; message: string; agentId: string | null }> {
+    const agentId = stopAgent(guildId);
+
+    return {
+      ok: true,
+      data: {
+        success: true,
+        message: agentId
+          ? `Stopped agent "${agentId}" and cleared queue.`
+          : "No agent was speaking. Queue cleared.",
+        agentId,
+      },
+    };
   }
 }
