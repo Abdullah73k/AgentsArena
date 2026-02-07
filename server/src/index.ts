@@ -4,6 +4,7 @@ import { CLIENT_URL, NODE_ENV } from "../constants/env.constants";
 import openapi from "@elysiajs/openapi";
 import { minecraftController } from "./modules/minecraft";
 import { minecraftWs } from "./modules/minecraft/ws";
+import { agentController } from "./modules/agents";
 import { registerAllActions } from "./modules/minecraft/bot/actions/register";
 import { startStateObserver } from "./modules/minecraft/bot/state/state-observer";
 
@@ -22,8 +23,12 @@ const app = new Elysia()
 	.get("/", () => "Hello Elysia")
 	.use(minecraftController)
 	.use(minecraftWs)
+	.use(agentController)
 	.listen(3000);
 
 console.log(
 	`Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
 );
+
+console.log("[Testing Agent System] Initialized with 6 behavioral profiles");
+console.log("[Testing Agent System] API endpoints available at /api/agents");
