@@ -10,6 +10,7 @@
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/openapi": "^1.4.14",
     "@openrouter/ai-sdk-provider": "^2.1.1",
+    "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
     "ai": "^6.0.77",
     "discord.js": "^14.25.1",
@@ -19,10 +20,12 @@
     "mineflayer": "^4.34.0",
     "mineflayer-pathfinder": "^2.4.5",
     "opusscript": "^0.1.1",
+    "pg": "^8.18.0",
     "vec3": "^0.1.10",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/pg": "^8.16.0",
     "bun-types": "latest",
     "dotenv": "^17.2.4",
     "prisma": "^7.3.0",
