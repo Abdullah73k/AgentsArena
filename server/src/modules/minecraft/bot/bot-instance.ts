@@ -81,6 +81,8 @@ export class BotInstance extends EventEmitter {
    * Resolves when the bot has spawned, rejects on connection error.
    */
   connect(): Promise<void> {
+    const CONNECTION_TIMEOUT_MS = 30_000; // 30 seconds max to connect
+
     return new Promise((resolve, reject) => {
       if (this.bot) {
         reject(new Error(`Bot ${this.botId} is already connected`));
@@ -88,21 +90,60 @@ export class BotInstance extends EventEmitter {
       }
 
       this.setStatus("connecting");
+      let settled = false;
+
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      };
+
+      const fail = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err);
+      };
+
+      // Timeout guard — prevents indefinite hang
+      const timer = setTimeout(() => {
+        fail(
+          new Error(
+            `Connection timeout after ${CONNECTION_TIMEOUT_MS / 1000}s ` +
+            `for bot "${this.config.username}" → ${this.config.host}:${this.config.port}`,
+          ),
+        );
+        this.setStatus("error");
+        // Try to clean up the dangling bot
+        try { this.bot?.quit(); } catch { /* ignore */ }
+        this.bot = null;
+      }, CONNECTION_TIMEOUT_MS);
+
+      console.log(
+        `[BotInstance] Connecting "${this.config.username}" → ` +
+        `${this.config.host}:${this.config.port} ` +
+        `(version: ${this.config.version ?? "auto-detect"})`,
+      );
 
       try {
-        this.bot = mineflayer.createBot({
+        // Build options — only include version if explicitly set,
+        // otherwise let mineflayer auto-detect the server version.
+        const botOptions: Parameters<typeof mineflayer.createBot>[0] = {
           host: this.config.host,
           port: this.config.port,
           username: this.config.username,
-          version: this.config.version,
           auth: this.config.auth,
-          // Suppress console output from mineflayer
           hideErrors: false,
-        });
+        };
+        if (this.config.version && this.config.version.length > 0) {
+          botOptions.version = this.config.version;
+        }
+        this.bot = mineflayer.createBot(botOptions);
       } catch (err) {
         this.setStatus("error");
         const error = err instanceof Error ? err : new Error(String(err));
-        reject(error);
+        fail(error);
         return;
       }
 
@@ -111,24 +152,29 @@ export class BotInstance extends EventEmitter {
         this.setStatus("spawned");
         this.emit("spawn", this.botId);
         this.registerEventListeners();
-        resolve();
+        console.log(`[BotInstance] "${this.config.username}" spawned successfully`);
+        succeed();
       });
 
       // Login = TCP connection established, not yet in-world
       this.bot.once("login", () => {
         this.setStatus("connected");
+        console.log(`[BotInstance] "${this.config.username}" logged in, waiting for spawn...`);
       });
 
       // Connection-phase errors
       this.bot.once("error", (err: Error) => {
         this.setStatus("error");
         this.emit("error", this.botId, err);
-        reject(err);
+        console.error(`[BotInstance] "${this.config.username}" error: ${err.message}`);
+        fail(err);
       });
 
       this.bot.once("end", (reason: string) => {
         this.setStatus("disconnected");
         this.emit("kicked", this.botId, reason ?? "unknown");
+        console.warn(`[BotInstance] "${this.config.username}" connection ended: ${reason ?? "unknown"}`);
+        fail(new Error(`Bot connection ended before spawn: ${reason ?? "unknown"}`));
       });
     });
   }

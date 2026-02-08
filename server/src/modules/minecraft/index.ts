@@ -7,8 +7,9 @@
  * service results to HTTP responses using Elysia status().
  */
 
-import { Elysia, status } from "elysia";
+import { Elysia, status, t } from "elysia";
 import { MinecraftService } from "./service";
+import { dispatchAction } from "./bot/actions/action-dispatcher";
 import {
   CreateBotBody,
   BotStateResponse,
@@ -176,6 +177,76 @@ export const minecraftController = new Elysia({
       detail: {
         summary: "Disconnect All Bots",
         description: "Disconnect all bots and clean up resources.",
+        tags: ["Minecraft"],
+      },
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // POST /api/minecraft/bots/:botId/chat — Send a chat message
+  // -------------------------------------------------------------------------
+  .post(
+    "/bots/:botId/chat",
+    async ({ params, body }) => {
+      const result = await dispatchAction({
+        type: "send-chat",
+        botId: params.botId,
+        message: body.message,
+      });
+
+      if (result.status === "failure") {
+        return status(400, {
+          success: false as const,
+          message: result.message ?? "Chat action failed",
+          code: "ACTION_FAILED",
+        });
+      }
+
+      return { success: true, message: result.message };
+    },
+    {
+      params: "minecraft.botId",
+      body: t.Object({ message: t.String() }),
+      detail: {
+        summary: "Send Chat",
+        description: "Send a chat message from a bot.",
+        tags: ["Minecraft"],
+      },
+    },
+  )
+
+  // -------------------------------------------------------------------------
+  // POST /api/minecraft/bots/:botId/action — Dispatch any action
+  // -------------------------------------------------------------------------
+  .post(
+    "/bots/:botId/action",
+    async ({ params, body }) => {
+      const action = { ...body, botId: params.botId } as any;
+      const result = await dispatchAction(action);
+
+      if (result.status === "failure") {
+        return status(400, {
+          success: false as const,
+          message: result.message ?? "Action failed",
+          code: "ACTION_FAILED",
+        });
+      }
+
+      return {
+        success: true,
+        actionType: result.actionType,
+        message: result.message,
+        durationMs: result.durationMs,
+      };
+    },
+    {
+      params: "minecraft.botId",
+      body: t.Object({
+        type: t.String(),
+      }, { additionalProperties: true }),
+      detail: {
+        summary: "Dispatch Action",
+        description: "Dispatch any supported action to a bot.",
         tags: ["Minecraft"],
       },
     },

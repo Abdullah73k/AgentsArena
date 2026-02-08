@@ -35,7 +35,7 @@ export const MAX_TEST_DURATION_SECONDS = 1_800;
 export const MIN_TEST_DURATION_SECONDS = 60;
 
 /** Target LLM bot username prefix. */
-export const TARGET_BOT_USERNAME_PREFIX = "target_llm";
+export const TARGET_BOT_USERNAME_PREFIX = "llm";
 
 /** Testing agent bot username prefix. */
 export const TESTING_AGENT_USERNAME_PREFIX = "tester";

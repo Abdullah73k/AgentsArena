@@ -29,6 +29,7 @@ import {
 import type { TestRun, TestRunConfig, ServiceResult } from "../types";
 import type { BotState } from "../../minecraft/types";
 import type { ChatBody } from "../../llm/model";
+import { Vec3 } from "vec3";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,7 +110,9 @@ export async function startTargetLlmAgent(
   const agentId = generateAgentId();
 
   // 1. Create Minecraft bot
-  const username = `${TARGET_BOT_USERNAME_PREFIX}_${testId.slice(0, 6)}`;
+  // Minecraft limits usernames to 16 characters
+  const suffix = testId.replace(/[^a-zA-Z0-9]/g, "").slice(-6);
+  const username = `${TARGET_BOT_USERNAME_PREFIX}_${suffix}`.slice(0, 16);
   const botResult = await MinecraftService.createBot(
     username,
     runConfig.minecraftServer.host,
@@ -266,8 +269,41 @@ async function runDecisionCycle(
 
   const responseText = llmResult.data.text;
 
+  // Log first 200 chars of response for debugging
+  console.log(
+    `[TargetLlmAgent] LLM response (${responseTimeMs}ms): ${responseText.slice(0, 200)}${responseText.length > 200 ? "..." : ""}`,
+  );
+
   // 4. Parse the LLM response
-  const decision = parseLlmResponse(responseText);
+  let decision = parseLlmResponse(responseText);
+
+  // 4b. Fallback behavior if parsing fails — explore instead of standing still
+  if (decision.actions.length === 0 && !decision.chat) {
+    const botInstance = botManager.getBot(botId);
+    if (botInstance?.mineflayerBot) {
+      const pos = botInstance.mineflayerBot.entity.position;
+      const yaw = Math.random() * Math.PI * 2;
+      const exploreX = Math.round(pos.x + Math.sin(yaw) * 8);
+      const exploreZ = Math.round(pos.z + Math.cos(yaw) * 8);
+      decision = {
+        reasoning: "LLM response could not be parsed — exploring randomly",
+        actions: [
+          { type: "look-at", x: exploreX, y: Math.round(pos.y), z: exploreZ },
+        ],
+        chat: null,
+        speak: null,
+      };
+
+      // Also physically walk forward briefly
+      const mfBot = botInstance.mineflayerBot;
+      const lookTarget = new Vec3(exploreX, pos.y + 1, exploreZ);
+      await mfBot.lookAt(lookTarget, true);
+      mfBot.setControlState("forward", true);
+      setTimeout(() => mfBot.setControlState("forward", false), 2000);
+
+      console.log(`[TargetLlmAgent] Fallback: exploring toward (${exploreX}, ${Math.round(pos.y)}, ${exploreZ})`);
+    }
+  }
 
   // 5. Update metrics
   await updateMetricsAfterDecision(testId, responseTimeMs);
@@ -434,8 +470,10 @@ function parseLlmResponse(responseText: string): LlmDecision {
   };
 
   try {
-    // Strip markdown code fences if present
     let cleaned = responseText.trim();
+
+    // Strip <think>...</think> blocks (some models like DeepSeek use these)
+    cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 
     // Remove ```json ... ``` wrapping
     const jsonFenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -446,6 +484,16 @@ function parseLlmResponse(responseText: string): LlmDecision {
     // Try to find JSON object in the response
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      // Last resort: try to extract intent from plain text
+      const chatFromText = extractChatFromText(cleaned);
+      if (chatFromText) {
+        return {
+          reasoning: "Extracted chat from non-JSON response",
+          actions: [],
+          chat: chatFromText,
+          speak: null,
+        };
+      }
       console.warn("[TargetLlmAgent] No JSON object found in LLM response");
       return defaultDecision;
     }
@@ -475,6 +523,19 @@ function parseLlmResponse(responseText: string): LlmDecision {
     );
     return defaultDecision;
   }
+}
+
+/**
+ * Try to extract a useful chat message from plain-text LLM output.
+ * Returns null if nothing usable found.
+ */
+function extractChatFromText(text: string): string | null {
+  // If the text is short enough, use it as a chat message
+  const lines = text.split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length > 0 && lines[0].length < 200) {
+    return lines[0].trim().slice(0, 100);
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -533,21 +594,13 @@ async function executeActions(
                 success = true;
               } catch (err) {
                 // Pathfinding failed but at least look at the target
-                bot.lookAt(
-                  // @ts-expect-error -- vec3 constructor accepts object
-                  { x: x, y: y + 1, z: z },
-                  true,
-                );
+                await bot.lookAt(new Vec3(x, y + 1, z), true);
                 detail = `move-to (${x}, ${y}, ${z}) - pathfinding failed, looking instead`;
                 success = false;
               }
             } else {
               // Fallback if pathfinder not available: just look at target
-              bot.lookAt(
-                // @ts-expect-error -- vec3 constructor accepts object
-                { x: x, y: y + 1, z: z },
-                true,
-              );
+              await bot.lookAt(new Vec3(x, y + 1, z), true);
               detail = `move-to (${x}, ${y}, ${z}) - no pathfinder, looking only`;
               success = true;
             }
@@ -567,8 +620,7 @@ async function executeActions(
           const ly = Number(action.y);
           const lz = Number(action.z);
           if (!isNaN(lx) && !isNaN(ly) && !isNaN(lz)) {
-            // @ts-expect-error -- vec3 constructor
-            await bot.lookAt({ x: lx, y: ly, z: lz }, true);
+            await bot.lookAt(new Vec3(lx, ly, lz), true);
             detail = `look-at (${lx}, ${ly}, ${lz})`;
             success = true;
           }
@@ -580,10 +632,7 @@ async function executeActions(
           const dy = Number(action.y);
           const dz = Number(action.z);
           if (!isNaN(dx) && !isNaN(dy) && !isNaN(dz)) {
-            const block = bot.blockAt(
-              // @ts-expect-error -- vec3 constructor
-              { x: dx, y: dy, z: dz },
-            );
+            const block = bot.blockAt(new Vec3(dx, dy, dz));
             if (block && block.name !== "air") {
               await bot.dig(block);
               detail = `dig ${block.name} at (${dx}, ${dy}, ${dz})`;
@@ -598,13 +647,9 @@ async function executeActions(
           const py = Number(action.y);
           const pz = Number(action.z);
           if (!isNaN(px) && !isNaN(py) && !isNaN(pz)) {
-            const refBlock = bot.blockAt(
-              // @ts-expect-error -- vec3 constructor
-              { x: px, y: py - 1, z: pz },
-            );
+            const refBlock = bot.blockAt(new Vec3(px, py - 1, pz));
             if (refBlock) {
-              // @ts-expect-error -- vec3 constructor
-              await bot.placeBlock(refBlock, { x: 0, y: 1, z: 0 });
+              await bot.placeBlock(refBlock, new Vec3(0, 1, 0));
               detail = `place-block at (${px}, ${py}, ${pz})`;
               success = true;
             }

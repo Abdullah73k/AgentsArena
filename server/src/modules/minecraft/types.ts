@@ -45,8 +45,8 @@ export interface BotConfig {
   host: string;
   /** Minecraft server port. */
   port: number;
-  /** Minecraft version string (e.g. "1.21.1"). */
-  version: string;
+  /** Minecraft version string (e.g. "1.21.1"). Omit to auto-detect. */
+  version?: string;
   /** Authentication mode — always offline for testing. */
   auth: "offline";
 }
