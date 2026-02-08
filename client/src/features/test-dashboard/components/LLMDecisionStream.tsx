@@ -2,7 +2,7 @@
  * Scrollable feed showing LLM decision events as they arrive.
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, memo } from "react";
 import { RiBrainLine } from "@remixicon/react";
 
 import {
@@ -16,7 +16,7 @@ import { formatTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import type { TargetLlmDecision } from "@/hooks/use-test-websocket";
 
-function LLMDecisionStream({
+function LLMDecisionStreamInner({
   decisions,
 }: {
   decisions: TargetLlmDecision[];
@@ -96,5 +96,7 @@ function LLMDecisionStream({
     </Card>
   );
 }
+
+const LLMDecisionStream = memo(LLMDecisionStreamInner);
 
 export { LLMDecisionStream };

@@ -2,7 +2,7 @@
  * Chat feed showing Discord/Minecraft messages from the test.
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, memo } from "react";
 import { RiChat3Line } from "@remixicon/react";
 
 import {
@@ -16,7 +16,7 @@ import { formatTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import type { TestChatMessage } from "@/hooks/use-test-websocket";
 
-function DiscordChatFeed({
+function DiscordChatFeedInner({
   messages,
 }: {
   messages: TestChatMessage[];
@@ -82,5 +82,7 @@ function DiscordChatFeed({
     </Card>
   );
 }
+
+const DiscordChatFeed = memo(DiscordChatFeedInner);
 
 export { DiscordChatFeed };

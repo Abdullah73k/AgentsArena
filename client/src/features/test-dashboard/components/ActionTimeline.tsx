@@ -2,7 +2,7 @@
  * Chronological timeline of all agent actions during the test.
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, memo } from "react";
 import { RiTimeLine, RiCheckLine, RiCloseLine } from "@remixicon/react";
 
 import {
@@ -16,7 +16,7 @@ import { formatTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import type { AgentAction } from "@/hooks/use-test-websocket";
 
-function ActionTimeline({ actions }: { actions: AgentAction[] }) {
+function ActionTimelineInner({ actions }: { actions: AgentAction[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -100,5 +100,7 @@ function ActionTimeline({ actions }: { actions: AgentAction[] }) {
     </Card>
   );
 }
+
+const ActionTimeline = memo(ActionTimelineInner);
 
 export { ActionTimeline };

@@ -2,9 +2,22 @@
  * Test results page — summary metrics, charts, and action logs.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { RiArrowLeftLine, RiDownloadLine } from "@remixicon/react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -24,6 +37,9 @@ import { formatDuration, formatDate, formatTime } from "@/lib/utils/format";
 import { LLM_MODELS } from "@/lib/utils/constants";
 import { fetchTest, fetchTestLogs } from "@/lib/api/endpoints/tests";
 import type { TestRun, TestActionLog } from "@/types/test";
+
+const PIE_COLORS = ["#14b8a6", "#f59e0b", "#8b5cf6"];
+const BAR_COLORS = { target: "#14b8a6", agent: "#f59e0b" };
 
 export default function TestResultsPage() {
   const { testId } = useParams<{ testId: string }>();
@@ -60,6 +76,31 @@ export default function TestResultsPage() {
     load();
     return () => { cancelled = true; };
   }, [testId]);
+
+  /** Action distribution by category for pie chart. */
+  const categoryData = useMemo(() => {
+    if (logs.length === 0) return [];
+    const counts = new Map<string, number>();
+    for (const log of logs) {
+      counts.set(log.actionCategory, (counts.get(log.actionCategory) ?? 0) + 1);
+    }
+    return Array.from(counts, ([name, value]) => ({ name, value }));
+  }, [logs]);
+
+  /** Source comparison data for bar chart. */
+  const sourceData = useMemo(() => {
+    if (logs.length === 0) return [];
+    const categories = new Set(logs.map((l) => l.actionCategory));
+    return Array.from(categories, (cat) => {
+      const targetCount = logs.filter(
+        (l) => l.actionCategory === cat && l.sourceType === "target"
+      ).length;
+      const agentCount = logs.filter(
+        (l) => l.actionCategory === cat && l.sourceType === "testing-agent"
+      ).length;
+      return { category: cat, target: targetCount, agent: agentCount };
+    });
+  }, [logs]);
 
   function handleExportJSON() {
     if (!test) return;
@@ -104,7 +145,7 @@ export default function TestResultsPage() {
         <PageHeader title="Test Results" />
         <div className="space-y-4 text-center">
           <p className="text-destructive text-sm">{error ?? "Test not found"}</p>
-          <Button variant="outline" onClick={() => navigate("/history")}>
+          <Button variant="outline" onClick={() => navigate("/tests")}>
             <RiArrowLeftLine data-icon="inline-start" className="size-4" />
             Back to History
           </Button>
@@ -114,10 +155,10 @@ export default function TestResultsPage() {
   }
 
   const model = LLM_MODELS.find((m) => m.id === test.targetLlmModel);
-  const m = test.metrics;
+  const mt = test.metrics;
   const avgResponseMs =
-    m.llmDecisionCount > 0
-      ? Math.round(m.totalLlmResponseTimeMs / m.llmDecisionCount)
+    mt.llmDecisionCount > 0
+      ? Math.round(mt.totalLlmResponseTimeMs / mt.llmDecisionCount)
       : 0;
   const totalDuration =
     test.startedAt && test.endedAt
@@ -132,7 +173,7 @@ export default function TestResultsPage() {
     <>
       <PageHeader
         title="Test Results"
-        description={`${test.scenarioType} &middot; ${model?.name ?? test.targetLlmModel}`}
+        description={`${test.scenarioType} \u00b7 ${model?.name ?? test.targetLlmModel}`}
         action={
           <Button variant="outline" onClick={() => navigate(`/tests/${test.testId}`)}>
             <RiArrowLeftLine data-icon="inline-start" className="size-4" />
@@ -169,24 +210,122 @@ export default function TestResultsPage() {
 
         {/* Metrics grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <MetricCard label="LLM Decisions" value={m.llmDecisionCount} />
+          <MetricCard label="LLM Decisions" value={mt.llmDecisionCount} />
           <MetricCard
             label="Avg Response"
             value={avgResponseMs}
             suffix="ms"
           />
-          <MetricCard label="Target Actions" value={m.targetActionCount} />
-          <MetricCard label="Agent Actions" value={m.testingAgentActionCount} />
+          <MetricCard label="Target Actions" value={mt.targetActionCount} />
+          <MetricCard label="Agent Actions" value={mt.testingAgentActionCount} />
           <MetricCard
             label="Messages"
-            value={m.targetMessageCount + m.testingAgentMessageCount}
+            value={mt.targetMessageCount + mt.testingAgentMessageCount}
           />
           <MetricCard
             label="Errors"
-            value={m.llmErrorCount}
-            trend={m.llmErrorCount > 0 ? "down" : "neutral"}
+            value={mt.llmErrorCount}
+            trend={mt.llmErrorCount > 0 ? "down" : "neutral"}
           />
         </div>
+
+        {/* Charts */}
+        {logs.length > 0 && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Action distribution pie */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Action Distribution</CardTitle>
+                <CardDescription>
+                  Breakdown by action category
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      dataKey="value"
+                      nameKey="name"
+                      stroke="none"
+                    >
+                      {categoryData.map((_, i) => (
+                        <Cell
+                          key={`cell-${i}`}
+                          fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: "oklch(0.2 0.01 240)",
+                        border: "1px solid oklch(0.3 0.01 240)",
+                        borderRadius: 0,
+                        fontSize: 11,
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11 }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Source comparison bar */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Target vs Agent Actions</CardTitle>
+                <CardDescription>
+                  Actions per category by source
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={sourceData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="rgba(255,255,255,0.06)"
+                    />
+                    <XAxis
+                      dataKey="category"
+                      tick={{ fontSize: 10 }}
+                      stroke="#888"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      stroke="#888"
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "oklch(0.2 0.01 240)",
+                        border: "1px solid oklch(0.3 0.01 240)",
+                        borderRadius: 0,
+                        fontSize: 11,
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar
+                      dataKey="target"
+                      name="Target LLM"
+                      fill={BAR_COLORS.target}
+                    />
+                    <Bar
+                      dataKey="agent"
+                      name="Testing Agent"
+                      fill={BAR_COLORS.agent}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Action logs */}
         <Card>
@@ -204,7 +343,7 @@ export default function TestResultsPage() {
               />
             ) : (
               <div className="max-h-[400px] overflow-y-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs" aria-label="Test action logs">
                   <thead className="sticky top-0 bg-card">
                     <tr className="text-muted-foreground text-left text-[10px]">
                       <th className="py-1 pr-2 font-medium">Time</th>

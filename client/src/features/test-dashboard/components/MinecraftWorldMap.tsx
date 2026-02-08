@@ -1,10 +1,11 @@
 /**
  * Top-down 2D map showing bot positions in the Minecraft world.
  *
- * Renders a canvas with colored dots for each bot and labels.
+ * Uses requestAnimationFrame for smooth rendering instead of
+ * re-painting on every React render cycle.
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback, memo } from "react";
 import {
   Card,
   CardHeader,
@@ -24,11 +25,15 @@ const BOT_COLORS = [
   "#06b6d4", // cyan
 ];
 
-function MinecraftWorldMap({ bots }: { bots: Map<string, BotState> }) {
+function MinecraftWorldMapInner({ bots }: { bots: Map<string, BotState> }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const botsArray = Array.from(bots.values());
+  const botsRef = useRef<Map<string, BotState>>(bots);
+  const rafRef = useRef<number>(0);
 
-  useEffect(() => {
+  // Keep bots ref in sync without triggering re-renders
+  botsRef.current = bots;
+
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -37,9 +42,16 @@ function MinecraftWorldMap({ bots }: { bots: Map<string, BotState> }) {
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+
+    // Only resize if dimensions changed
+    const targetWidth = Math.round(rect.width * dpr);
+    const targetHeight = Math.round(rect.height * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const w = rect.width;
     const h = rect.height;
@@ -65,6 +77,7 @@ function MinecraftWorldMap({ bots }: { bots: Map<string, BotState> }) {
       ctx.stroke();
     }
 
+    const botsArray = Array.from(botsRef.current.values());
     if (botsArray.length === 0) return;
 
     // Calculate bounds for centering
@@ -122,7 +135,26 @@ function MinecraftWorldMap({ bots }: { bots: Map<string, BotState> }) {
         sy + 16
       );
     });
-  }, [botsArray]);
+  }, []);
+
+  useEffect(() => {
+    let running = true;
+
+    function loop() {
+      if (!running) return;
+      draw();
+      rafRef.current = requestAnimationFrame(loop);
+    }
+
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [draw]);
+
+  const botsArray = Array.from(bots.values());
 
   return (
     <Card>
@@ -143,11 +175,14 @@ function MinecraftWorldMap({ bots }: { bots: Map<string, BotState> }) {
           <canvas
             ref={canvasRef}
             className="h-[240px] w-full rounded-none"
+            aria-label={`Minecraft world map showing ${botsArray.length} bot positions`}
           />
         )}
       </CardContent>
     </Card>
   );
 }
+
+const MinecraftWorldMap = memo(MinecraftWorldMapInner);
 
 export { MinecraftWorldMap };

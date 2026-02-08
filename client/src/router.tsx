@@ -8,6 +8,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const CreateTestPage = lazy(() => import("@/pages/CreateTestPage"));
@@ -28,16 +29,18 @@ export function Router() {
   return (
     <BrowserRouter>
       <AppLayout>
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/tests/new" element={<CreateTestPage />} />
-            <Route path="/tests/:testId" element={<TestDashboardPage />} />
-            <Route path="/tests/:testId/results" element={<TestResultsPage />} />
-            <Route path="/tests" element={<TestHistoryPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/tests/new" element={<CreateTestPage />} />
+              <Route path="/tests/:testId" element={<TestDashboardPage />} />
+              <Route path="/tests/:testId/results" element={<TestResultsPage />} />
+              <Route path="/tests" element={<TestHistoryPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </AppLayout>
     </BrowserRouter>
   );
