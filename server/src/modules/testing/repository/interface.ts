@@ -43,4 +43,11 @@ export interface ITestingRepository {
 
   /** Count currently active test runs (initializing, coordination, executing). */
   countActive(): Promise<number>;
+
+  /** Atomically increment a numeric metric on a test run. */
+  incrementMetric(
+    testId: string,
+    metricName: keyof TestRun["metrics"],
+    amount?: number
+  ): Promise<void>;
 }

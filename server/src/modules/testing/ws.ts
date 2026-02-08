@@ -138,7 +138,7 @@ export const testingWs = new Elysia({
     switch (body.type) {
       case "subscribe": {
         conn.subscribedTestIds.add(body.testId);
-        ws.send({ type: "pong" });
+        ws.send({ type: "subscribed", testId: body.testId });
         console.log(
           `[Testing WS] ${connId} subscribed to test ${body.testId}`,
         );

@@ -513,15 +513,44 @@ async function executeActions(
           const y = Number(action.y);
           const z = Number(action.z);
           if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-            // Use pathfinder if available, otherwise simple movement
-            const goal = { x, y, z };
-            bot.lookAt(
-              // @ts-expect-error -- vec3 constructor accepts object
-              { x: goal.x, y: goal.y + 1, z: goal.z },
-              true,
-            );
-            detail = `move-to (${x}, ${y}, ${z})`;
-            success = true;
+            // Use pathfinder plugin to actually move the bot
+            const pathfinder = (bot as any).pathfinder;
+            
+            if (pathfinder) {
+              try {
+                // Create a goal to reach the target position (within 1 block)
+                const { goals } = require('mineflayer-pathfinder');
+                const goal = new goals.GoalNear(x, y, z, 1);
+                
+                // Start pathfinding (with timeout to avoid infinite waiting)
+                const pathfindPromise = pathfinder.goto(goal);
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Pathfinding timeout')), 30000)
+                );
+                
+                await Promise.race([pathfindPromise, timeoutPromise]);
+                detail = `move-to (${x}, ${y}, ${z}) - reached`;
+                success = true;
+              } catch (err) {
+                // Pathfinding failed but at least look at the target
+                bot.lookAt(
+                  // @ts-expect-error -- vec3 constructor accepts object
+                  { x: x, y: y + 1, z: z },
+                  true,
+                );
+                detail = `move-to (${x}, ${y}, ${z}) - pathfinding failed, looking instead`;
+                success = false;
+              }
+            } else {
+              // Fallback if pathfinder not available: just look at target
+              bot.lookAt(
+                // @ts-expect-error -- vec3 constructor accepts object
+                { x: x, y: y + 1, z: z },
+                true,
+              );
+              detail = `move-to (${x}, ${y}, ${z}) - no pathfinder, looking only`;
+              success = true;
+            }
           }
           break;
         }
@@ -741,7 +770,7 @@ async function executeVoiceAction(
 
 /**
  * Increment a single numeric metric on the test run.
- * Async and fire-and-forget to avoid blocking execution.
+ * Uses atomic repository method to prevent race conditions.
  */
 async function incrementMetric(
   testId: string,
@@ -756,13 +785,7 @@ async function incrementMetric(
   >,
 ): Promise<void> {
   try {
-    const testRun = await testingRepository.findById(testId);
-    if (!testRun) return;
-
-    const updatedMetrics = { ...testRun.metrics };
-    updatedMetrics[field] += 1;
-
-    await testingRepository.update(testId, { metrics: updatedMetrics });
+    await testingRepository.incrementMetric(testId, field, 1);
   } catch {
     // Non-critical, don't crash the loop
   }
@@ -770,18 +793,22 @@ async function incrementMetric(
 
 /**
  * Update metrics after a successful LLM decision cycle.
+ * Uses atomic increments and then updates timestamp separately.
  */
 async function updateMetricsAfterDecision(
   testId: string,
   responseTimeMs: number,
 ): Promise<void> {
   try {
+    // Atomic increments
+    await testingRepository.incrementMetric(testId, "llmDecisionCount", 1);
+    await testingRepository.incrementMetric(testId, "totalLlmResponseTimeMs", responseTimeMs);
+
+    // Update timestamp separately (not a race condition concern)
     const testRun = await testingRepository.findById(testId);
     if (!testRun) return;
 
     const updatedMetrics = { ...testRun.metrics };
-    updatedMetrics.llmDecisionCount += 1;
-    updatedMetrics.totalLlmResponseTimeMs += responseTimeMs;
     updatedMetrics.lastLlmDecisionAt = new Date().toISOString();
 
     await testingRepository.update(testId, { metrics: updatedMetrics });

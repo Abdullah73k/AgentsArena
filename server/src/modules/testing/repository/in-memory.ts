@@ -121,4 +121,22 @@ export class InMemoryTestingRepository implements ITestingRepository {
     }
     return count;
   }
+
+  /** Atomically increment a numeric metric on a test run. */
+  async incrementMetric(
+    testId: string,
+    metricName: keyof TestRun["metrics"],
+    amount: number = 1
+  ): Promise<void> {
+    const testRun = testRunsStore.get(testId);
+    if (!testRun) {
+      throw new Error(`Test run ${testId} not found`);
+    }
+
+    // Direct modification is atomic in single-threaded JS
+    const currentValue = testRun.metrics[metricName];
+    if (typeof currentValue === "number") {
+      testRun.metrics[metricName] = currentValue + amount;
+    }
+  }
 }
