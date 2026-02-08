@@ -9,17 +9,9 @@ function LiveMetricsPanel({ metrics }: { metrics: LiveMetricsSummary }) {
   return (
     <div data-slot="live-metrics-panel" className="grid grid-cols-2 gap-2">
       <MetricCard
-        label="LLM Decisions"
-        value={metrics.decisionCount}
-      />
-      <MetricCard
         label="Avg Response"
         value={metrics.avgResponseTimeMs > 0 ? metrics.avgResponseTimeMs : "--"}
         suffix="ms"
-      />
-      <MetricCard
-        label="Target Actions"
-        value={metrics.targetActions}
       />
       <MetricCard
         label="Agent Actions"

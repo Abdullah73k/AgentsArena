@@ -3,8 +3,8 @@
  *
  * Layout (12-column grid):
  *  Row 1: TestStatusCard (col-8) + LiveMetricsPanel (col-4)
- *  Row 2: MinecraftWorldMap (col-6) + AgentStatusGrid (col-6)
- *  Row 3: LLMDecisionStream (col-6) + DiscordChatFeed (col-6)
+ *  Row 2: AgentStatusGrid (col-12)
+ *  Row 3: DiscordChatFeed (col-12)
  *  Row 4: ActionTimeline (col-12)
  */
 
@@ -26,9 +26,7 @@ import type { TestRun } from "@/types/test";
 
 import { TestStatusCard } from "../features/test-dashboard/components/TestStatusCard";
 import { LiveMetricsPanel } from "../features/test-dashboard/components/LiveMetricsPanel";
-import { MinecraftWorldMap } from "../features/test-dashboard/components/MinecraftWorldMap";
 import { AgentStatusGrid } from "../features/test-dashboard/components/AgentStatusGrid";
-import { LLMDecisionStream } from "../features/test-dashboard/components/LLMDecisionStream";
 import { DiscordChatFeed } from "../features/test-dashboard/components/DiscordChatFeed";
 import { ActionTimeline } from "../features/test-dashboard/components/ActionTimeline";
 
@@ -148,10 +146,7 @@ export default function TestDashboardPage() {
         </div>
 
         {/* Row 2 */}
-        <div className="col-span-12 md:col-span-6">
-          <MinecraftWorldMap bots={bots} />
-        </div>
-        <div className="col-span-12 md:col-span-6">
+        <div className="col-span-12">
           <AgentStatusGrid
             profiles={test.testingAgentProfiles}
             bots={bots}
@@ -159,10 +154,7 @@ export default function TestDashboardPage() {
         </div>
 
         {/* Row 3 */}
-        <div className="col-span-12 md:col-span-6">
-          <LLMDecisionStream decisions={ws.llmDecisions} />
-        </div>
-        <div className="col-span-12 md:col-span-6">
+        <div className="col-span-12">
           <DiscordChatFeed messages={ws.chatMessages} />
         </div>
 

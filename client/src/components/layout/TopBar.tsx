@@ -7,7 +7,6 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   RiDashboardLine,
-  RiAddLine,
   RiHistoryLine,
   RiFlaskLine,
 } from "@remixicon/react";
@@ -60,16 +59,7 @@ export function TopBar() {
           })}
         </nav>
 
-        {/* Spacer */}
         <div className="flex-1" />
-
-        {/* Actions */}
-        <Link to="/tests/new">
-          <Button size="sm" className="gap-1.5">
-            <RiAddLine className="size-3.5" data-icon="inline-start" />
-            New Test
-          </Button>
-        </Link>
       </div>
     </header>
   );

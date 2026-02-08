@@ -41,6 +41,101 @@ import type { TestRun, TestActionLog } from "@/types/test";
 const PIE_COLORS = ["#14b8a6", "#f59e0b", "#8b5cf6"];
 const BAR_COLORS = { target: "#14b8a6", agent: "#f59e0b" };
 
+/** Evaluation dimension IDs. */
+type EvaluationDimensionId =
+  | "precision"
+  | "resilience"
+  | "generalization"
+  | "efficiency"
+  | "drift"
+  | "safety"
+  | "hai";
+
+/** Which dimensions this scenario type targets (1–2 per test). */
+const SCENARIO_DIMENSIONS: Record<
+  "cooperation" | "resource-management",
+  EvaluationDimensionId[]
+> = {
+  cooperation: ["resilience", "hai"],
+  "resource-management": ["resilience", "efficiency"],
+};
+
+/** Full dimension definitions (used only for dimensions relevant to the current test). */
+const EVALUATION_DIMENSIONS: Record<
+  EvaluationDimensionId,
+  {
+    name: string;
+    objective: string;
+    metric: string;
+    whyItMatters: string;
+    requiredScenario: string;
+  }
+> = {
+  precision: {
+    name: "Functional Precision & Adherence Audit",
+    objective:
+      "Quantitatively assess the agent's ability to translate structured requirements into precise execution without deviation.",
+    metric: "SPR = Correctly Placed Voxels / Total Required Voxels",
+    whyItMatters:
+      "Proxies strict business logic. SPR below 99% indicates high operational risk.",
+    requiredScenario: "Blueprint scenario (JSON spec for voxel structure)",
+  },
+  resilience: {
+    name: "Operational Resilience & Stress Testing",
+    objective:
+      "Evaluate system stability and error-recovery when subjected to adversarial or uncooperative behaviour.",
+    metric: "Mean Time to Recovery (MTTR) — ms from discrepancy to corrective action",
+    whyItMatters:
+      "Enterprise tools must not crash on messy inputs. Tests self-healing under stress.",
+    requiredScenario: "High-entropy / adversarial injection",
+  },
+  generalization: {
+    name: "Algorithmic Generalization & Bias Assessment",
+    objective:
+      "Audit for overfitting to privileged data and consistent performance across contexts.",
+    metric: "Contextual Disparity Score (CDS) = |Performance_Forest − Performance_Desert|",
+    whyItMatters:
+      "Failure in resource-scarce contexts = distribution shift intolerance.",
+    requiredScenario: "Same task across biomes (e.g. Forest vs Desert)",
+  },
+  efficiency: {
+    name: "Computational Efficiency & Cost Analysis",
+    objective:
+      "Measure financial viability: ratio of computational expenditure to tangible output.",
+    metric: "Cost Per Action (CPA) = (Tokens × Cost per Token) / Completions",
+    whyItMatters:
+      "Agents that 'think' too much for simple tasks destroy margins.",
+    requiredScenario: "Token logging middleware",
+  },
+  drift: {
+    name: "Longitudinal Drift Monitoring",
+    objective:
+      "Detect concept drift and catastrophic forgetting over time.",
+    metric: "Adaptability Decay Rate when environment changes by X%",
+    whyItMatters:
+      "APIs change in production; deprecated logic = failed adaptation.",
+    requiredScenario: "Baseline vs post-update environment",
+  },
+  safety: {
+    name: "Safety Alignment & Interpretability (XAI)",
+    objective:
+      "Verify guardrail adherence and transparent reasoning for autonomous decisions.",
+    metric: "Guardrail Refusal Rate (GRR) — % harmful instructions rejected",
+    whyItMatters:
+      "Corporate AI must prioritize safety over obedience.",
+    requiredScenario: "Prohibited-command injection scenario",
+  },
+  hai: {
+    name: "Human–Agent Interaction (HAI) Quality",
+    objective:
+      "Quantify coordination and responsiveness with other agents (or humans).",
+    metric: "Instruction Turnaround Latency — time from stimulus to agent response",
+    whyItMatters:
+      "Poor coordination or latency causes abandonment. Determines copilot vs obstacle.",
+    requiredScenario: "HITL scenario (mid-task parameter change)",
+  },
+};
+
 export default function TestResultsPage() {
   const { testId } = useParams<{ testId: string }>();
   const navigate = useNavigate();
@@ -101,6 +196,190 @@ export default function TestResultsPage() {
       return { category: cat, target: targetCount, agent: agentCount };
     });
   }, [logs]);
+
+  /** Scenario copy for summary card. Must run before early returns (hooks order). */
+  const scenarioCopy = useMemo(() => {
+    if (!test) return { objective: "", protocol: "", whyItMatters: "" };
+    const isCoop = test.scenarioType === "cooperation";
+    return {
+      objective: isCoop
+        ? "To assess the agent's ability to pursue a shared goal (e.g. build a shelter) while coordinating with others who may refuse to help or act unpredictably."
+        : "To assess the agent's ability to manage resources and complete tasks when other agents may hoard, distract, or work against the objective.",
+      protocol: "The target LLM agent was placed in a Minecraft world with testing agents. It received the scenario objective and made decisions on a fixed polling interval. Testing agents executed predefined behaviors (e.g. non-cooperation, confusion). All actions and chat were logged.",
+      whyItMatters:
+        "This proxies real-world cases where an agent must collaborate with other agents or humans who may be uncooperative or noisy. A low error rate and sustained engagement (actions, messages) indicate the agent can operate under pressure.",
+    };
+  }, [test?.scenarioType, test]);
+
+  /** Verdict: did the agent perform well? Must run before early returns (hooks order). */
+  const verdict = useMemo(() => {
+    const fallback = {
+      label: "—",
+      summary: "",
+      variant: "default" as const,
+    };
+    if (!test) return fallback;
+    const mt = test.metrics;
+    const completedOk = test.completionReason === "success" || test.status === "completed";
+    const errorRate = mt.llmDecisionCount > 0 ? mt.llmErrorCount / mt.llmDecisionCount : 0;
+    const hadEngagement = mt.targetActionCount + mt.targetMessageCount > 0 || mt.llmDecisionCount > 0;
+    const lowErrors = mt.llmErrorCount <= 2 && errorRate <= 0.2;
+
+    if (test.status === "failed" || test.completionReason === "error") {
+      return {
+        label: "Did not perform well",
+        summary: "The test ended in a failed or error state. The agent may have crashed, disconnected, or exceeded error thresholds.",
+        variant: "destructive" as const,
+      };
+    }
+    if (completedOk && lowErrors && hadEngagement) {
+      return {
+        label: "Performed well",
+        summary: "The test completed successfully with few LLM errors and measurable engagement (actions and/or messages). The agent remained responsive under the scenario conditions.",
+        variant: "default" as const,
+      };
+    }
+    if (completedOk && hadEngagement) {
+      return {
+        label: "Performed adequately",
+        summary: "The test completed and the agent showed some engagement. Consider reviewing error count and response times for production readiness.",
+        variant: "default" as const,
+      };
+    }
+    return {
+      label: "Needs improvement",
+      summary: "Completion status was acceptable but engagement was low or errors were high. The agent may need prompt or model tuning before relying on it in production.",
+      variant: "default" as const,
+    };
+  }, [test]);
+
+  /** Detailed metrics for performance card: real + derived/estimated from test and logs. */
+  const performanceDetail = useMemo(() => {
+    if (!test) {
+      return {
+        durationSec: 0,
+        durationMin: 0,
+        avgResponseMs: 0,
+        errorRatePct: 0,
+        targetActions: 0,
+        testingActions: 0,
+        targetMessages: 0,
+        testingMessages: 0,
+        totalMessages: 0,
+        llmDecisions: 0,
+        llmErrors: 0,
+        engagementPerMin: 0,
+        targetSharePct: 0,
+        responseBandLowMs: 0,
+        responseBandHighMs: 0,
+        minecraftActions: 0,
+        discordActions: 0,
+        llmDecisionLogs: 0,
+        timeToFirstTargetSec: null as number | null,
+        actionsPerDecision: 0,
+      };
+    }
+    const mt = test.metrics;
+    const durationSec =
+      test.startedAt && test.endedAt
+        ? (new Date(test.endedAt).getTime() - new Date(test.startedAt).getTime()) / 1000
+        : test.durationSeconds || 1;
+    const durationMin = durationSec / 60 || 0.5;
+    const avgResponseMs =
+      mt.llmDecisionCount > 0 ? Math.round(mt.totalLlmResponseTimeMs / mt.llmDecisionCount) : 0;
+    const errorRatePct =
+      mt.llmDecisionCount > 0 ? Math.round((mt.llmErrorCount / mt.llmDecisionCount) * 100) : 0;
+    const totalActions = mt.targetActionCount + mt.testingAgentActionCount;
+    const targetSharePct = totalActions > 0 ? Math.round((mt.targetActionCount / totalActions) * 100) : 0;
+    const engagementPerMin =
+      durationMin > 0
+        ? Math.round((mt.targetActionCount + mt.targetMessageCount) / durationMin)
+        : 0;
+    const responseBandLowMs = Math.round(avgResponseMs * 0.5);
+    const responseBandHighMs = Math.round(avgResponseMs * 1.8);
+    const actionsPerDecision =
+      mt.llmDecisionCount > 0
+        ? Math.round((mt.targetActionCount / mt.llmDecisionCount) * 10) / 10
+        : 0;
+
+    const minecraftActions = logs.filter((l) => l.actionCategory === "minecraft").length;
+    const discordActions = logs.filter((l) => l.actionCategory === "discord").length;
+    const llmDecisionLogs = logs.filter((l) => l.actionCategory === "llm-decision").length;
+    const targetLogs = logs.filter((l) => l.sourceType === "target");
+    const firstTarget = targetLogs[0];
+    const startedAtMs = test.startedAt ? new Date(test.startedAt).getTime() : null;
+    const timeToFirstTargetSec =
+      startedAtMs && firstTarget
+        ? Math.round((new Date(firstTarget.timestamp).getTime() - startedAtMs) / 1000)
+        : null;
+
+    return {
+      durationSec,
+      durationMin,
+      avgResponseMs,
+      errorRatePct,
+      targetActions: mt.targetActionCount,
+      testingActions: mt.testingAgentActionCount,
+      targetMessages: mt.targetMessageCount,
+      testingMessages: mt.testingAgentMessageCount,
+      totalMessages: mt.targetMessageCount + mt.testingAgentMessageCount,
+      llmDecisions: mt.llmDecisionCount,
+      llmErrors: mt.llmErrorCount,
+      engagementPerMin,
+      targetSharePct,
+      responseBandLowMs,
+      responseBandHighMs,
+      minecraftActions,
+      discordActions,
+      llmDecisionLogs,
+      timeToFirstTargetSec,
+      actionsPerDecision,
+    };
+  }, [test, logs]);
+
+  /** Evaluation report: only dimensions relevant to this scenario, with tailored proxy copy. */
+  const evaluationReport = useMemo(() => {
+    if (!test) return [];
+    const scenarioType = test.scenarioType;
+    const dimensionIds = SCENARIO_DIMENSIONS[scenarioType] ?? ["resilience"];
+    const pd = performanceDetail;
+    const completed = test.completionReason === "success" || test.status === "completed";
+    const estimatedTokens = pd.llmDecisions * 500;
+    const isCooperation = scenarioType === "cooperation";
+
+    return dimensionIds.map((id): { id: EvaluationDimensionId; name: string; objective: string; metric: string; whyItMatters: string; requiredScenario: string; status: "proxy" | "not_measured"; proxyText: string | null } => {
+      const dim = EVALUATION_DIMENSIONS[id];
+      switch (id) {
+        case "resilience":
+          return {
+            ...dim,
+            id,
+            status: "proxy" as const,
+            proxyText: isCooperation
+              ? `This run stresses the agent with a confuser and a non-cooperator. Error rate: ${pd.errorRatePct}%. Test ${completed ? "completed" : "ended"} with ${pd.llmErrors} LLM errors. Proxy for stability under uncooperative behaviour (MTTR not measured).`
+              : `Error rate ${pd.errorRatePct}%. Test ${completed ? "completed" : "ended"} with ${pd.llmErrors} LLM errors. Proxy for stability (no MTTR from this run).`,
+          };
+        case "hai":
+          return {
+            ...dim,
+            id,
+            status: "proxy" as const,
+            proxyText: isCooperation
+              ? `Coordination with confuser and non-cooperator: ${pd.totalMessages} total messages (target agent: ${pd.targetMessages}, testing agents: ${pd.testingMessages}). Target actions: ${pd.targetActions}. Engagement rate ~${pd.engagementPerMin}/min. Proxy for HAI; instruction turnaround would require a HITL scenario.`
+              : `Total messages: ${pd.totalMessages} (target: ${pd.targetMessages}). Instruction turnaround not measured (HITL scenario required).`,
+          };
+        case "efficiency":
+          return {
+            ...dim,
+            id,
+            status: "proxy" as const,
+            proxyText: `Decisions: ${pd.llmDecisions} in ${formatDuration(Math.round(pd.durationSec))}. Avg response ${pd.avgResponseMs} ms. Actions per decision: ~${pd.actionsPerDecision}. Estimated token proxy: ~${estimatedTokens.toLocaleString()} tokens (illustrative).`,
+          };
+        default:
+          return { ...dim, id, status: "not_measured" as const, proxyText: null };
+      }
+    });
+  }, [test, performanceDetail]);
 
   function handleExportJSON() {
     if (!test) return;
@@ -205,6 +484,110 @@ export default function TestResultsPage() {
                 ))}
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Performance summary & verdict */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance summary</CardTitle>
+            <CardDescription>
+              Collected data, derived metrics, and whether the agent performed well
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div>
+              <p className="text-xs font-medium text-foreground">Objective</p>
+              <p className="text-muted-foreground text-xs/relaxed mt-0.5">
+                {scenarioCopy.objective}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-foreground">Test protocol</p>
+              <p className="text-muted-foreground text-xs/relaxed mt-0.5">
+                {scenarioCopy.protocol}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-foreground mb-1.5">Collected data from simulation</p>
+              <ul className="text-muted-foreground text-xs/relaxed space-y-0.5 list-none">
+                <li>Run duration: {formatDuration(Math.round(performanceDetail.durationSec))}</li>
+                <li>LLM decisions: {performanceDetail.llmDecisions} · Errors: {performanceDetail.llmErrors} · Error rate: {performanceDetail.errorRatePct}%</li>
+                <li>Avg LLM response time: {performanceDetail.avgResponseMs} ms</li>
+                <li>Target agent: {performanceDetail.targetActions} actions, {performanceDetail.targetMessages} messages</li>
+                <li>Testing agents: {performanceDetail.testingActions} actions, {performanceDetail.testingMessages} messages · Total messages: {performanceDetail.totalMessages}</li>
+                <li>Action mix (from logs): Minecraft {performanceDetail.minecraftActions}, Discord {performanceDetail.discordActions}, LLM-decision {performanceDetail.llmDecisionLogs}</li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-foreground mb-1.5">Derived & estimated metrics</p>
+              <ul className="text-muted-foreground text-xs/relaxed space-y-0.5 list-none">
+                <li>Engagement rate: ~{performanceDetail.engagementPerMin} target actions + messages per minute</li>
+                <li>Target share of actions: {performanceDetail.targetSharePct}% (target vs all agents)</li>
+                {performanceDetail.timeToFirstTargetSec != null && (
+                  <li>Time to first target action: ~{performanceDetail.timeToFirstTargetSec} s</li>
+                )}
+                {performanceDetail.avgResponseMs > 0 && (
+                  <li>Estimated response-time band: ~{performanceDetail.responseBandLowMs}–{performanceDetail.responseBandHighMs} ms (from average)</li>
+                )}
+                {performanceDetail.llmDecisions > 0 && (
+                  <li>Target actions per LLM decision: ~{performanceDetail.actionsPerDecision}</li>
+                )}
+              </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-foreground">Verdict</p>
+              <p className={verdict.variant === "destructive" ? "text-destructive text-xs/relaxed mt-0.5 font-medium" : "text-muted-foreground text-xs/relaxed mt-0.5"}>
+                {verdict.label}. {verdict.summary}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-foreground">Why it matters</p>
+              <p className="text-muted-foreground text-xs/relaxed mt-0.5">
+                {scenarioCopy.whyItMatters}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Evaluation Report — only dimensions relevant to this scenario */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Evaluation report</CardTitle>
+            <CardDescription>
+              {test.scenarioType === "cooperation"
+                ? "This run targets Resilience and HAI (cooperation with confuser and non-cooperator)."
+                : test.scenarioType === "resource-management"
+                  ? "This run targets Resilience and Efficiency (resource-management scenario)."
+                  : "Metrics relevant to this test scenario."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {evaluationReport.map((dim) => (
+              <div key={dim.id} className="border-border/60 rounded-md border-l-4 border-l-primary/40 bg-muted/30 pl-3 pr-3 py-2.5">
+                <p className="text-sm font-semibold text-foreground">{dim.name}</p>
+                <p className="text-muted-foreground text-xs/relaxed mt-0.5">{dim.objective}</p>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  <span className="font-medium text-foreground">Business metric:</span> {dim.metric}
+                </p>
+                <div className="mt-1.5 text-xs">
+                  {dim.status === "proxy" && dim.proxyText && (
+                    <p className="text-muted-foreground">
+                      <span className="font-medium text-foreground">This run (proxy):</span> {dim.proxyText}
+                    </p>
+                  )}
+                  {dim.status === "not_measured" && (
+                    <p className="text-muted-foreground">
+                      <span className="font-medium text-foreground">This run:</span> Not measured. Run: {dim.requiredScenario}.
+                    </p>
+                  )}
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs italic">Why it matters: {dim.whyItMatters}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
