@@ -35,7 +35,7 @@ export abstract class EvaluationService {
       console.log(`[EvaluationService] Generating report for test ${testRunId}`);
 
       // Fetch test run data from testing module
-      const testRun = await testingRepository.getTestRun(testRunId);
+      const testRun = await testingRepository.findById(testRunId);
       if (!testRun) {
         return { ok: false, error: "Test run not found", code: "NOT_FOUND" };
       }
@@ -49,23 +49,44 @@ export abstract class EvaluationService {
         };
       }
 
-      // Fetch events for this test run
-      const events = await testingRepository.getEvents(testRunId);
+      // Fetch action logs for this test run
+      const events = await testingRepository.findActionLogs(testRunId);
       console.log(`[EvaluationService] Fetched ${events.length} events`);
 
       // Get test metadata
-      const testStartTime = new Date(testRun.startedAt);
-      const testEndTime = testRun.completedAt
-        ? new Date(testRun.completedAt)
+      const testStartTime = testRun.startedAt
+        ? new Date(testRun.startedAt)
+        : new Date(testRun.createdAt);
+      const testEndTime = testRun.endedAt
+        ? new Date(testRun.endedAt)
         : new Date();
       const testDuration =
         (testEndTime.getTime() - testStartTime.getTime()) / 1000;
+
+      // Build agent info from test run data (TestRun doesn't have an agents array)
+      const agents: { agentId: string; profile: string }[] = [];
+
+      // Add target LLM agent
+      if (testRun.targetAgentId) {
+        agents.push({
+          agentId: testRun.targetAgentId,
+          profile: "target-llm",
+        });
+      }
+
+      // Add testing agents (map IDs to their profiles)
+      for (let i = 0; i < testRun.testingAgentIds.length; i++) {
+        agents.push({
+          agentId: testRun.testingAgentIds[i],
+          profile: testRun.testingAgentProfiles[i] ?? "unknown",
+        });
+      }
 
       // Generate report
       const report = await ReportGenerator.generate(
         testRunId,
         events,
-        testRun.agents || [],
+        agents,
         testDuration,
         testStartTime,
         testEndTime
