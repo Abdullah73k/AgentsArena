@@ -4,6 +4,7 @@
   "scripts": {
     "test": "bun test",
     "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
     "typecheck": "bunx tsc --noEmit",
     "db:generate": "bunx --bun prisma generate",
     "db:push": "bunx --bun prisma db push",

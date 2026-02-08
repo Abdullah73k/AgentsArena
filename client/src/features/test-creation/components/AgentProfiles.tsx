@@ -28,15 +28,6 @@ const ALL_PROFILES: BehavioralProfile[] = [
   "follower",
 ];
 
-const PROFILE_LABELS: Record<BehavioralProfile, string> = {
-  leader: "Leader",
-  "non-cooperator": "Non-Cooperator",
-  confuser: "Confuser",
-  "resource-hoarder": "Resource Hoarder",
-  "task-abandoner": "Task Abandoner",
-  follower: "Follower",
-};
-
 const PROFILE_DESCRIPTIONS: Record<BehavioralProfile, string> = {
   leader: "Speaks first, assigns the task, builds, and reasons with the non-cooperator",
   "non-cooperator": "Self-interested, refuses help and resources",
@@ -84,7 +75,6 @@ function AgentProfiles() {
               <FieldLabel>Profiles</FieldLabel>
               <div className="grid gap-2 sm:grid-cols-2">
                 {ALL_PROFILES.map((profile) => {
-                  const label = PROFILE_LABELS[profile];
                   const description = PROFILE_DESCRIPTIONS[profile];
                   const isSelected = selected.includes(profile);
 

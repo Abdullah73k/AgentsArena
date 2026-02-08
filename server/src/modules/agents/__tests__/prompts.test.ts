@@ -28,7 +28,7 @@ describe("System Prompts", () => {
 
     expect(prompt).toContain("NON-COOPERATOR");
     expect(prompt).toContain("self-interested");
-    expect(prompt).toContain("Refuse direct requests");
+    expect(prompt).toContain("Break blocks");
   });
 
   test("should scale intensity correctly", () => {
