@@ -32,10 +32,14 @@ export class AgentService {
   }> {
     try {
       // Build agent configuration
+      // Use a unique suffix to prevent DUPLICATE_USERNAME errors when
+      // multiple agents share the same behavioral profile.
+      const uniqueSuffix = Date.now().toString(36).slice(-4) +
+        Math.random().toString(36).slice(2, 5);
       const config: AgentConfig = {
         profile: request.profile,
         minecraftBot: {
-          username: `${request.profile}_agent`,
+          username: `${request.profile.slice(0, 8)}_${uniqueSuffix}`,
           host: request.minecraftServer.host,
           port: request.minecraftServer.port,
           version: request.minecraftServer.version,
