@@ -29,22 +29,23 @@ export class AgentSpawner {
       });
 
       // 2. Spawn Minecraft bot
-      const botResult = await botManager.createBot(
-        config.minecraftBot.username,
-        config.minecraftBot.host,
-        config.minecraftBot.port,
-        config.minecraftBot.version
-      );
-
-      if (!botResult.ok) {
+      // botManager.createBot() returns BotState directly and throws BotManagerError on failure
+      let botId: string;
+      try {
+        const botState = await botManager.createBot(
+          config.minecraftBot.username,
+          config.minecraftBot.host,
+          config.minecraftBot.port,
+          config.minecraftBot.version
+        );
+        botId = botState.botId;
+      } catch (botError) {
         return {
           ok: false,
-          message: `Failed to spawn Minecraft bot: ${botResult.message}`,
+          message: `Failed to spawn Minecraft bot: ${botError instanceof Error ? botError.message : "Unknown error"}`,
           code: "BOT_SPAWN_FAILED",
         };
       }
-
-      const botId = botResult.data.botId;
 
       // 3. Create agent instance
       const agentId = this.generateAgentId();

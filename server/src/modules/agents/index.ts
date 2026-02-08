@@ -49,7 +49,7 @@ export const agentController = new Elysia({
         });
       }
 
-      return result.data;
+      return result.data!;
     },
     {
       body: "agent.create",
@@ -115,7 +115,7 @@ export const agentController = new Elysia({
         });
       }
 
-      return result.data;
+      return result.data!;
     },
     {
       response: {
@@ -253,7 +253,7 @@ export const agentController = new Elysia({
         });
       }
 
-      return result.data;
+      return result.data!;
     },
     {
       response: {
