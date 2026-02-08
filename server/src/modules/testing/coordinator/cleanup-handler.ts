@@ -8,7 +8,7 @@
  */
 
 import type { TestRun } from "../types";
-import { TestingRepository } from "../repository";
+import { testingRepository } from "../repository";
 import { CompletionDetector } from "./completion-detector";
 import { MinecraftService } from "../../minecraft/service";
 import { AgentService } from "../../agents/service";
@@ -105,7 +105,7 @@ export class CleanupHandler {
   static async cleanupAll(): Promise<void> {
     console.log("[CleanupHandler] Cleaning up all active tests...");
 
-    const activeTests = await TestingRepository.findAll();
+    const activeTests = await testingRepository.findAll();
     const activeRuns = activeTests.filter(
       (t) =>
         t.status === "initializing" ||
@@ -116,7 +116,7 @@ export class CleanupHandler {
     for (const testRun of activeRuns) {
       try {
         await this.cleanup(testRun);
-        await TestingRepository.update(testRun.testId, {
+        await testingRepository.update(testRun.testId, {
           status: "cancelled",
           completionReason: "manual-stop",
           endedAt: new Date().toISOString(),

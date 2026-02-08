@@ -12,7 +12,7 @@
 
 import type { TestRun, CompletionReason, TestMetrics } from "../types";
 import type { TestScenario } from "../scenarios/types";
-import { TestingRepository } from "../repository";
+import { testingRepository } from "../repository";
 import { testEvents } from "../events/event-emitter";
 
 // ---------------------------------------------------------------------------
@@ -97,7 +97,7 @@ export class CompletionDetector {
     // Stop monitoring first to prevent duplicate triggers
     this.stop(testId);
 
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) {
       console.warn(
         `[CompletionDetector] Test ${testId} not found for completion`
@@ -121,7 +121,7 @@ export class CompletionDetector {
         ? "cancelled"
         : "completed";
 
-    await TestingRepository.update(testId, {
+    await testingRepository.update(testId, {
       status: finalStatus,
       completionReason: reason,
       endedAt,
@@ -177,7 +177,7 @@ export class CompletionDetector {
     testId: string,
     scenario: TestScenario
   ): Promise<void> {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun || testRun.status !== "executing") {
       return;
     }

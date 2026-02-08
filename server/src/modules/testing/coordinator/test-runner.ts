@@ -24,7 +24,7 @@ import type {
   ServiceResult,
   CreateTestRequest,
 } from "../types";
-import { TestingRepository } from "../repository";
+import { testingRepository } from "../repository";
 import { getScenario } from "../scenarios";
 import { testEvents } from "../events/event-emitter";
 import {
@@ -100,7 +100,7 @@ async function transitionStatus(
   from: TestRunStatus,
   to: TestRunStatus,
 ): Promise<void> {
-  await TestingRepository.update(testId, { status: to });
+  await testingRepository.update(testId, { status: to });
 
   testEvents.emitEvent("test-status-changed", {
     testId,
@@ -136,7 +136,7 @@ export class TestRunner {
     }
 
     // Enforce concurrency limit
-    const activeCount = await TestingRepository.countActive();
+    const activeCount = await testingRepository.countActive();
     if (activeCount >= MAX_CONCURRENT_TESTS) {
       return {
         ok: false,
@@ -181,7 +181,7 @@ export class TestRunner {
       },
     };
 
-    await TestingRepository.create(testRun);
+    await testingRepository.create(testRun);
 
     console.log(
       `[TestRunner] Created test ${testId} (${request.scenarioType})`,
@@ -198,7 +198,7 @@ export class TestRunner {
   static async startTest(
     testId: string,
   ): Promise<ServiceResult<TestRun>> {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) {
       return {
         ok: false,
@@ -219,7 +219,7 @@ export class TestRunner {
 
     // Mark as initializing
     await transitionStatus(testId, "created", "initializing");
-    await TestingRepository.update(testId, {
+    await testingRepository.update(testId, {
       startedAt: new Date().toISOString(),
     });
 
@@ -237,10 +237,10 @@ export class TestRunner {
       });
 
       // Attempt cleanup
-      const currentRun = await TestingRepository.findById(testId);
+      const currentRun = await testingRepository.findById(testId);
       if (currentRun) {
         await CleanupHandler.cleanup(currentRun);
-        await TestingRepository.update(testId, {
+        await testingRepository.update(testId, {
           status: "failed",
           completionReason: "error",
           endedAt: new Date().toISOString(),
@@ -249,7 +249,7 @@ export class TestRunner {
     });
 
     // Return the updated record
-    const updated = await TestingRepository.findById(testId);
+    const updated = await testingRepository.findById(testId);
     return { ok: true, data: updated! };
   }
 
@@ -259,7 +259,7 @@ export class TestRunner {
   static async stopTest(
     testId: string,
   ): Promise<ServiceResult<TestRun>> {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) {
       return {
         ok: false,
@@ -294,12 +294,12 @@ export class TestRunner {
     await CompletionDetector.triggerCompletion(testId, "manual-stop");
 
     // Cleanup resources
-    const updatedRun = await TestingRepository.findById(testId);
+    const updatedRun = await testingRepository.findById(testId);
     if (updatedRun) {
       await CleanupHandler.cleanup(updatedRun);
     }
 
-    const finalRun = await TestingRepository.findById(testId);
+    const finalRun = await testingRepository.findById(testId);
     return { ok: true, data: finalRun! };
   }
 
@@ -312,7 +312,7 @@ export class TestRunner {
    * in a fire-and-forget fashion.
    */
   private static async runPipeline(testId: string): Promise<void> {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) throw new Error(`Test ${testId} vanished before pipeline`);
 
     const scenario = getScenario(testRun.scenarioType);
@@ -327,7 +327,7 @@ export class TestRunner {
         testId,
       );
       if (channelResult.ok) {
-        await TestingRepository.update(testId, {
+        await testingRepository.update(testId, {
           discordTextChannelId: channelResult.data.textChannelId,
           discordVoiceChannelId: channelResult.data.voiceChannelId,
         });
@@ -366,7 +366,7 @@ export class TestRunner {
     const targetHandle = targetResult.data;
     activeHandles.set(testId, targetHandle);
 
-    await TestingRepository.update(testId, {
+    await testingRepository.update(testId, {
       targetAgentId: targetHandle.agentId,
       targetBotId: targetHandle.botId,
     });
@@ -411,7 +411,7 @@ export class TestRunner {
       }
     }
 
-    await TestingRepository.update(testId, {
+    await testingRepository.update(testId, {
       testingAgentIds: spawnedAgentIds,
     });
 
@@ -428,7 +428,7 @@ export class TestRunner {
     await sleep(COORDINATION_PHASE_SECONDS * 1000);
 
     // Verify test wasn't stopped during coordination
-    const postCoordRun = await TestingRepository.findById(testId);
+    const postCoordRun = await testingRepository.findById(testId);
     if (
       !postCoordRun ||
       postCoordRun.status === "cancelled" ||
@@ -452,7 +452,7 @@ export class TestRunner {
     // -----------------------------------------------------------------------
     // Step 7: Completion Detection
     // -----------------------------------------------------------------------
-    const latestRun = await TestingRepository.findById(testId);
+    const latestRun = await testingRepository.findById(testId);
     if (latestRun) {
       CompletionDetector.start(latestRun, scenario);
     }
@@ -474,7 +474,7 @@ export class TestRunner {
       }
 
       // Step 9: Cleanup
-      const finalRun = await TestingRepository.findById(testId);
+      const finalRun = await testingRepository.findById(testId);
       if (finalRun) {
         await CleanupHandler.cleanup(finalRun);
       }

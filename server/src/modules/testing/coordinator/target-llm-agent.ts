@@ -18,7 +18,7 @@
 import { MinecraftService } from "../../minecraft/service";
 import { DiscordService } from "../../discord/service";
 import { LlmService } from "../../llm/service";
-import { TestingRepository } from "../repository";
+import { testingRepository } from "../repository";
 import { testEvents } from "../events/event-emitter";
 import { botManager } from "../../minecraft/bot/bot-manager";
 import { DISCORD_GUILD_ID } from "../../../../constants/discord.constants";
@@ -295,7 +295,7 @@ async function runDecisionCycle(
   }
 
   // 10. Log the decision
-  await TestingRepository.createActionLog({
+  await testingRepository.createActionLog({
     logId: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     testId,
     sourceAgentId: agentId,
@@ -641,7 +641,7 @@ async function executeActions(
     });
 
     // Log the action
-    await TestingRepository.createActionLog({
+    await testingRepository.createActionLog({
       logId: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       testId,
       sourceAgentId: agentId,
@@ -688,7 +688,7 @@ async function executeChatAction(
       timestamp: new Date().toISOString(),
     });
 
-    await TestingRepository.createActionLog({
+    await testingRepository.createActionLog({
       logId: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       testId,
       sourceAgentId: agentId,
@@ -756,13 +756,13 @@ async function incrementMetric(
   >,
 ): Promise<void> {
   try {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) return;
 
     const updatedMetrics = { ...testRun.metrics };
     updatedMetrics[field] += 1;
 
-    await TestingRepository.update(testId, { metrics: updatedMetrics });
+    await testingRepository.update(testId, { metrics: updatedMetrics });
   } catch {
     // Non-critical, don't crash the loop
   }
@@ -776,7 +776,7 @@ async function updateMetricsAfterDecision(
   responseTimeMs: number,
 ): Promise<void> {
   try {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) return;
 
     const updatedMetrics = { ...testRun.metrics };
@@ -784,7 +784,7 @@ async function updateMetricsAfterDecision(
     updatedMetrics.totalLlmResponseTimeMs += responseTimeMs;
     updatedMetrics.lastLlmDecisionAt = new Date().toISOString();
 
-    await TestingRepository.update(testId, { metrics: updatedMetrics });
+    await testingRepository.update(testId, { metrics: updatedMetrics });
 
     testEvents.emitEvent("test-metrics-updated", {
       testId,

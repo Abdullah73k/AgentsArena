@@ -17,7 +17,7 @@ import type {
   TestActionLog,
 } from "./types";
 import { TestRunner } from "./coordinator/test-runner";
-import { TestingRepository } from "./repository";
+import { testingRepository } from "./repository";
 import { getAllScenarios, getScenarioTypes } from "./scenarios";
 import type { TestScenario } from "./scenarios/types";
 
@@ -59,7 +59,7 @@ export abstract class TestingService {
   static async getTest(
     testId: string,
   ): Promise<ServiceResult<TestRun>> {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) {
       return {
         ok: false,
@@ -78,7 +78,7 @@ export abstract class TestingService {
     status?: string;
     scenarioType?: string;
   }): Promise<ServiceResult<{ tests: TestRun[]; count: number }>> {
-    const tests = await TestingRepository.findAll(filters);
+    const tests = await testingRepository.findAll(filters);
     return {
       ok: true,
       data: { tests, count: tests.length },
@@ -91,7 +91,7 @@ export abstract class TestingService {
   static async deleteTest(
     testId: string,
   ): Promise<ServiceResult<{ message: string }>> {
-    const testRun = await TestingRepository.findById(testId);
+    const testRun = await testingRepository.findById(testId);
     if (!testRun) {
       return {
         ok: false,
@@ -111,7 +111,7 @@ export abstract class TestingService {
       };
     }
 
-    await TestingRepository.delete(testId);
+    await testingRepository.delete(testId);
     return {
       ok: true,
       data: { message: `Test ${testId} deleted` },
@@ -125,7 +125,7 @@ export abstract class TestingService {
     testId: string,
     limit: number = 200,
   ): Promise<ServiceResult<{ testId: string; logs: TestActionLog[]; count: number }>> {
-    const exists = await TestingRepository.exists(testId);
+    const exists = await testingRepository.exists(testId);
     if (!exists) {
       return {
         ok: false,
@@ -135,7 +135,7 @@ export abstract class TestingService {
       };
     }
 
-    const logs = await TestingRepository.findActionLogs(testId, limit);
+    const logs = await testingRepository.findActionLogs(testId, limit);
     return {
       ok: true,
       data: { testId, logs, count: logs.length },
