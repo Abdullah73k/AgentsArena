@@ -8,6 +8,8 @@
  * - llmPollingIntervalMs: 3000–30000
  * - behaviorIntensity: 0–1
  * - port: 1–65535
+ *
+ * Note: `config` is optional — backend applies smart defaults when omitted.
  */
 
 import { z } from "zod";
@@ -54,7 +56,7 @@ export const createTestRequestSchema = z.object({
         .max(65535, "Port must be <= 65535"),
       version: z.string().min(1, "Version is required"),
     }),
-  }),
+  }).optional(),
 });
 
 export type CreateTestFormData = z.infer<typeof createTestRequestSchema>;

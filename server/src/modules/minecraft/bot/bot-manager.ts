@@ -122,10 +122,18 @@ export class BotManager extends EventEmitter {
       // but mark it as failed
       const error = err instanceof Error ? err : new Error(String(err));
       this.emit("bot-error", botId, error);
-      throw new BotManagerError(
-        `Failed to connect bot "${username}": ${error.message}`,
-        "CONNECTION_FAILED",
-      );
+      
+      // Provide helpful error message for connection refused (Minecraft server not running)
+      const isConnectionRefused = error.message.includes("ECONNREFUSED") || 
+                                  error.message.includes("connect ECONNREFUSED");
+      const helpfulMessage = isConnectionRefused
+        ? `Failed to connect bot "${username}" to Minecraft server at ${config.host}:${config.port}. ` +
+          `Make sure a Minecraft server is running on this address. ` +
+          `You can start a local server or use a test/mock server for development. ` +
+          `Error: ${error.message}`
+        : `Failed to connect bot "${username}": ${error.message}`;
+      
+      throw new BotManagerError(helpfulMessage, "CONNECTION_FAILED");
     }
 
     return instance.getState();
