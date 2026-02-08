@@ -251,26 +251,6 @@ DEBUG=* bun run dev:backend # Verbose logs
 
 ---
 
-## 🗺️ Roadmap
-
-**v1.0** (Current): 2 scenarios, 6 profiles, 5 metrics, real-time dashboard  
-**v1.1** (Q2 2025): 3 new scenarios, mock MC server, Docker setup, PDF reports  
-**v2.0** (Q3 2025): Deterministic seeds, scenario editor, comparative analysis, video recording  
-
----
-
-## 🤝 Contributing
-
-We need:
-- 🎮 New scenarios (combat, exploration, puzzles)
-- 🤖 More profiles (saboteur, over-communicator)
-- 📊 Advanced metrics (strategic planning, creativity)
-- 🐛 Bug reports and fixes
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
 ## 📜 License
 
 MIT License - see [LICENSE](LICENSE) for details.
@@ -280,7 +260,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🙏 Acknowledgments
 
 **Inspiration**: NVIDIA Omniverse robotics simulation  
-**Built with**: [Elysia](https://elysiajs.com/), [Mineflayer](https://github.com/PrismarineJS/mineflayer), [Vercel AI SDK](https://sdk.vercel.ai/), [shadcn/ui](https://ui.shadcn.com/)
+**Built with**: [Elysia](https://elysiajs.com/), [Mineflayer](https://github.com/PrismarineJS/mineflayer), [shadcn/ui](https://ui.shadcn.com/)
 
 ---
 
