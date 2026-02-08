@@ -161,7 +161,7 @@ export class BehaviorExecutor {
         // ==================================================================
 
         case "collect-resources-selfishly": {
-          // Find and mine a nearby block (wood, stone, ore)
+          // Find and mine a nearby block, then brag or refuse to share
           const targetNames = [
             "oak_log", "birch_log", "spruce_log", "dark_oak_log",
             "stone", "cobblestone", "coal_ore", "iron_ore",
@@ -172,62 +172,86 @@ export class BehaviorExecutor {
           });
 
           if (block) {
-            // Look at the block and dig it
             await mcBot.lookAt(block.position, true);
             await mcBot.dig(block);
-            console.log(`[${agent.agentId}] Selfishly mined ${block.name}`);
+
+            // Vocally brag or refuse to share what was mined
+            const hoardMessages = [
+              `Nice, found some ${block.name}. This is all mine though.`,
+              `I'm keeping this ${block.name} for myself, don't even ask.`,
+              `Finders keepers! This ${block.name} is mine.`,
+              `Got some ${block.name}. No, you can't have any.`,
+            ];
+            mcBot.chat(hoardMessages[randInt(0, hoardMessages.length - 1)]);
+            console.log(`[${agent.agentId}] Selfishly mined ${block.name} and bragged`);
             return true;
           }
 
-          // Fallback: wander randomly looking for resources
           await this.walkRandomDirection(mcBot);
+          mcBot.chat("I'm looking for resources... for myself.");
           return true;
         }
 
         case "refuse-to-share": {
-          // Intentionally do nothing useful — refuse cooperation by standing still
-          // or walking away from nearby players
+          // Actively refuse cooperation with vocal responses
+          const refusalMessages = [
+            "Nah, I'm not helping with that.",
+            "Sorry, I'm busy doing my own thing.",
+            "Why should I help you? What's in it for me?",
+            "I don't feel like cooperating right now.",
+            "No thanks, I'd rather work alone.",
+            "You can do that yourself, I'm not interested.",
+            "I have my own plans, figure it out yourself.",
+            "Not my problem. Go ask someone else.",
+            "I'm gonna pass on that. Good luck though.",
+            "Nope. I have better things to do.",
+          ];
+          mcBot.chat(refusalMessages[randInt(0, refusalMessages.length - 1)]);
+
+          // Also physically walk away from nearby players
           const nearbyPlayers = Object.values(mcBot.entities).filter(
             (e) => e.type === "player" && e !== mcBot.entity &&
-              e.position.distanceTo(mcBot.entity.position) < 10,
+              e.position.distanceTo(mcBot.entity.position) < 12,
           );
 
           if (nearbyPlayers.length > 0) {
-            // Walk away from the nearest player
             const nearest = nearbyPlayers[0];
             const dx = mcBot.entity.position.x - nearest.position.x;
             const dz = mcBot.entity.position.z - nearest.position.z;
             const dist = Math.sqrt(dx * dx + dz * dz) || 1;
-
-            // Move in the opposite direction
             await mcBot.lookAt(
-              mcBot.entity.position.offset(dx / dist, 0, dz / dist),
+              mcBot.entity.position.offset((dx / dist) * 5, 0, (dz / dist) * 5),
               true,
             );
             mcBot.setControlState("forward", true);
             await sleep(2000);
             mcBot.setControlState("forward", false);
-            console.log(`[${agent.agentId}] Walked away — refusing to share`);
-          } else {
-            // No one nearby, just stand around
-            console.log(`[${agent.agentId}] Refusing to help (idle)`);
           }
+          console.log(`[${agent.agentId}] Vocally refused to help and walked away`);
           return true;
         }
 
         case "avoid-helping-others": {
-          // Detect nearby players and move away from them
+          // Detect nearby players, announce refusal, and move away
           const players = Object.values(mcBot.entities).filter(
             (e) => e.type === "player" && e !== mcBot.entity &&
               e.position.distanceTo(mcBot.entity.position) < 12,
           );
 
           if (players.length > 0) {
+            const avoidMessages = [
+              "Leave me alone, I'm doing my own thing.",
+              "Stop following me, I don't want to help.",
+              "I already told you, I'm not interested in teamwork.",
+              "Can you stop? I'm working on something else.",
+              "Go build your shelter without me.",
+              "I don't do group projects.",
+            ];
+            mcBot.chat(avoidMessages[randInt(0, avoidMessages.length - 1)]);
+
             const nearest = players[0];
             const dx = mcBot.entity.position.x - nearest.position.x;
             const dz = mcBot.entity.position.z - nearest.position.z;
-
-            // Sprint away
             mcBot.setControlState("sprint", true);
             mcBot.setControlState("forward", true);
             await mcBot.lookAt(
@@ -237,17 +261,26 @@ export class BehaviorExecutor {
             await sleep(1500);
             mcBot.setControlState("forward", false);
             mcBot.setControlState("sprint", false);
-            console.log(`[${agent.agentId}] Sprinted away from nearby player`);
+            console.log(`[${agent.agentId}] Told players off and sprinted away`);
           } else {
             await this.walkRandomDirection(mcBot);
+            mcBot.chat("Finally, some peace and quiet away from everyone.");
           }
           return true;
         }
 
         case "work-on-own-tasks": {
-          // Wander and collect random blocks — "busy" doing own thing
+          // "Busy" doing own thing, vocally dismissive
+          const busyMessages = [
+            "I'm busy, don't bother me.",
+            "I have my own goals right now.",
+            "I'm working on a solo project, leave me out of yours.",
+            "Not everything has to be a team effort you know.",
+            "I work better alone.",
+          ];
+          mcBot.chat(busyMessages[randInt(0, busyMessages.length - 1)]);
           await this.walkRandomDirection(mcBot);
-          console.log(`[${agent.agentId}] Working on own tasks (wandering)`);
+          console.log(`[${agent.agentId}] Working on own tasks (dismissive)`);
           return true;
         }
 

@@ -102,7 +102,7 @@ export class BotManager extends EventEmitter {
       username,
       host: host ?? MINECRAFT_HOST,
       port: port ?? MINECRAFT_PORT,
-      version: version ?? MINECRAFT_VERSION,
+      version: (version && version.length > 0) ? version : (MINECRAFT_VERSION || undefined),
       auth: "offline",
     };
 

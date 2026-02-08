@@ -34,12 +34,14 @@ export class AgentService {
       // Build agent configuration
       // Use a unique suffix to prevent DUPLICATE_USERNAME errors when
       // multiple agents share the same behavioral profile.
+      // Minecraft limits usernames to 16 characters
       const uniqueSuffix = Date.now().toString(36).slice(-4) +
         Math.random().toString(36).slice(2, 5);
+      const rawUsername = `${request.profile.slice(0, 8)}_${uniqueSuffix}`;
       const config: AgentConfig = {
         profile: request.profile,
         minecraftBot: {
-          username: `${request.profile.slice(0, 8)}_${uniqueSuffix}`,
+          username: rawUsername.slice(0, 16),
           host: request.minecraftServer.host,
           port: request.minecraftServer.port,
           version: request.minecraftServer.version,
